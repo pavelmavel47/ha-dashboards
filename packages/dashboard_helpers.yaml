@@ -1,0 +1,286 @@
+# Home-Assistant-Paket mit allem, was die Dashboards zusätzlich brauchen.
+# Einbinden: in configuration.yaml
+#   homeassistant:
+#     packages: !include_dir_named packages
+# und diese Datei nach config/packages/ kopieren.
+#
+# Enthalten:
+#   - input_select.radio_ziel, input_text.muell_hinweis/termine_heute, input_number.kochfeld_grundlast
+#   - Template-Sensoren (geschätzte Leistungen von Wärmepumpe, Backofen, Kochfeld; Lichter; Haus-Restlast)
+#   - Template-Cover "Rolladen WC EG" (Workaround für einen defekten Aktor, über eine Zigbee-Gruppe)
+#   - Skripte garagentor_ausloesen, radio_starten, radio_stopp, radio_lautstaerke
+#   - Automationen für Müll-Hinweis, Termine des Tages und Kochfeld-Grundlast
+# Alle Entitäts-IDs (Wechselrichter, Lautsprecher, Kalender, Handys ...) an die eigene Installation anpassen.
+# Die Schätzformeln sind auf ein bestimmtes Haus kalibriert und nur als Beispiel gedacht.
+
+input_select:
+  radio_ziel:
+    name: Radio Ziel
+    options:
+      - Polk
+      - Show
+      - Bad
+    icon: mdi:speaker
+input_text:
+  muell_hinweis:
+    mode: text
+    name: Muell Hinweis
+    max: 255
+    min: 0
+  termine_heute:
+    mode: text
+    name: Termine Heute
+    max: 255
+    min: 0
+input_number:
+  kochfeld_grundlast:
+    name: Kochfeld Grundlast
+    min: -20000
+    max: 20000
+    step: 1
+    mode: box
+    unit_of_measurement: W
+    icon: mdi:stove
+template:
+  - sensor:
+      - name: Wärmepumpe Leistung geschätzt
+        unique_id: dash_warmepumpe_leistung_geschatzt
+        state: "{% if is_state('binary_sensor.cu401b_s_kompressor', 'on') %}{% set m = states('sensor.cu401b_s_verdichtermodulation') | float(0) %}{% set ta = states('sensor.cu401b_s_aussentemperatur') | float(3) %}{% if is_state('binary_sensor.cu401b_s_warmwasser_aufladen', 'on') %}{{ (m * 30) | round(0) if m > 0 else 2450 }}{% else %}{% set q = [m - 30, 0] | max %}{{ (255 + m * 10.5 - ta * 9 + 4.5 * q + 0.07 * q * q) | round(0) if m > 0 else 550 }}{% endif %}{% else %}0{% endif %}"
+        device_class: power
+        state_class: measurement
+        unit_of_measurement: W
+      - name: Lichter Leistung
+        unique_id: dash_lichter_leistung
+        state: "{{ (states('sensor.tannenbaum_energy_power') | float(0)) + (states('sensor.ecklampe_energy_power') | float(0)) + (states('sensor.shellyplug_s_80646f81030c_power') | float(0)) }}"
+        device_class: power
+        state_class: measurement
+        unit_of_measurement: W
+      - name: Backofen Leistung geschätzt
+        unique_id: dash_backofen_leistung_geschatzt
+        state: "{% if is_state('sensor.backofen_operation_state', 'run') %}{% set t = states('sensor.backofen_aktuelle_garraumtemperatur') | float(0) %}{% set s = states('number.backofen_solltemperatur') | float(0) %}{% set pizza = 'pizza' in states('select.backofen_aktives_programm') %}{% set heiz = 3450 if pizza else 2250 %}{% set halt = 1300 if pizza else 1000 %}{% if s > 0 %}{{ heiz if t < s - 10 else halt }}{% else %}{% set lauf = (now() - states.sensor.backofen_operation_state.last_changed).total_seconds() %}{{ heiz if lauf < (600 if pizza else 720) else halt }}{% endif %}{% else %}0{% endif %}"
+        device_class: power
+        state_class: measurement
+        unit_of_measurement: W
+      - name: Haus Restlast
+        unique_id: dash_haus_restlast
+        state: "{{ ((states('sensor.load_power') | float(0)) - (states('sensor.ecoflow_stream_netzleistung') | float(0)) - ((states('sensor.warmepumpe_leistung_geschatzt') | float(0)) + (states('sensor.0xa4c1385290f6bf6b_power') | float(0)) + (states('sensor.waschmaschine_power') | float(0)) + (states('sensor.charging_power') | float(0)) + (states('sensor.poolpumpe_leistung') | float(0)) + (states('sensor.kuhlschrank_leistung') | float(0)) + (states('sensor.backofen_leistung_geschatzt') | float(0)))) | round(0) }}"
+        device_class: power
+        state_class: measurement
+        unit_of_measurement: W
+      - name: Kochfeld Leistung geschätzt
+        unique_id: dash_kochfeld_leistung_geschatzt
+        state: "{% set g = states('input_number.kochfeld_grundlast') | float(-99999) %}{% if states('sensor.kochfeld_betriebszustand') in ['run', 'pause'] and g > -10000 %}{% set d = (states('sensor.haus_restlast') | float(0)) - g %}{{ [[d, 0] | max, 7400] | min | round(0) }}{% else %}0{% endif %}"
+        device_class: power
+        state_class: measurement
+        unit_of_measurement: W
+  - cover:
+      - name: Rolladen WC EG
+        unique_id: dash_rolladen_wc_eg
+        open_cover:
+          - action: cover.open_cover
+            target:
+              entity_id: cover.rolladen_wc_eg_gruppe
+        close_cover:
+          - action: cover.close_cover
+            target:
+              entity_id: cover.rolladen_wc_eg_gruppe
+        stop_cover:
+          - action: cover.stop_cover
+            target:
+              entity_id: cover.rolladen_wc_eg_gruppe
+script:
+  garagentor_ausloesen:
+    alias: Garagentor auslösen
+    icon: mdi:garage-variant
+    mode: single
+    description: Impuls auf das Garagentor-Relais (aus, 1,5 s warten, wieder ein)
+    sequence:
+      - action: switch.turn_off
+        target:
+          entity_id: switch.garagentor_l1
+      - delay:
+          milliseconds: 1500
+      - action: switch.turn_on
+        target:
+          entity_id: switch.garagentor_l1
+  radio_starten:
+    alias: Radio starten (Alexa)
+    description: Spielt den Sender auf dem in "Radio Ziel" gewählten Alexa-Gerät (Alexa Media Player, Sprachbefehl als Text).
+    icon: mdi:radio
+    mode: restart
+    fields:
+      sender:
+        name: Sender
+        example: WDR 4
+        required: true
+        selector:
+          text: {}
+    sequence:
+      - variables:
+          player: "{{ {'Polk': 'media_player.wohnzimmer_polk_command_bar_wohnzimmer', 'Show': 'media_player.kuche_echo_show_kuche', 'Bad': 'media_player.bad_echo_dot_bad'}[states('input_select.radio_ziel')] | default('media_player.wohnzimmer_polk_command_bar_wohnzimmer') }}"
+      - variables:
+          befehl: "{{ {'Radio Lippe': 'spiele Radio Lippe', 'WDR 4': 'spiele den Radiosender WDR 4', 'Spotify': 'spiele meine Lieblingssongs auf Spotify'}.get(sender, 'spiele ' ~ sender) }}"
+          sende_an: "{{ player }}"
+      - repeat:
+          until:
+            - condition: template
+              value_template: "{{ (is_state(player, 'playing') and (((state_attr(player, 'media_title') or '') is not search('Radio Lippe|WDR 4')) if sender == 'Spotify' else (sender in (state_attr(player, 'media_title') or '')))) or repeat.index >= 2 }}"
+          sequence:
+            - variables:
+                tunein: "{{ {'Radio Lippe': 's96523', 'WDR 4': 's324641'}.get(sender, '') }}"
+            - variables:
+                per_tunein: "{{ tunein != '' and (sender == 'Radio Lippe' or repeat.index == 2) }}"
+            - action: media_player.play_media
+              target:
+                entity_id: "{{ sende_an }}"
+              data:
+                media_content_type: "{{ 'TUNEIN' if per_tunein else 'custom' }}"
+                media_content_id: "{{ tunein if per_tunein else befehl }}"
+            - repeat:
+                until:
+                  - condition: template
+                    value_template: "{{ (is_state(player, 'playing') and (((state_attr(player, 'media_title') or '') is not search('Radio Lippe|WDR 4')) if sender == 'Spotify' else (sender in (state_attr(player, 'media_title') or '')))) or repeat.index >= 5 }}"
+                sequence:
+                  - delay:
+                      seconds: 3
+                  - action: homeassistant.update_entity
+                    target:
+                      entity_id: "{{ player }}"
+                    continue_on_error: true
+  radio_stopp:
+    alias: Radio stoppen (Alexa)
+    description: Stoppt die Wiedergabe auf dem gewählten Alexa-Gerät.
+    icon: mdi:stop
+    mode: restart
+    sequence:
+      - variables:
+          player: "{{ {'Polk': 'media_player.wohnzimmer_polk_command_bar_wohnzimmer', 'Show': 'media_player.kuche_echo_show_kuche', 'Bad': 'media_player.bad_echo_dot_bad'}[states('input_select.radio_ziel')] | default('media_player.wohnzimmer_polk_command_bar_wohnzimmer') }}"
+      - action: media_player.media_pause
+        target:
+          entity_id: "{{ player }}"
+  radio_lautstaerke:
+    alias: Radio Lautstärke (Alexa)
+    description: Ändert die Lautstärke des gewählten Alexa-Geräts um schritt (z. B. 0.05 oder -0.05).
+    icon: mdi:volume-high
+    mode: queued
+    fields:
+      schritt:
+        name: Schritt
+        example: 0.05
+        required: true
+        selector:
+          number:
+            min: -0.5
+            max: 0.5
+            step: 0.01
+    sequence:
+      - variables:
+          player: "{{ {'Polk': 'media_player.wohnzimmer_polk_command_bar_wohnzimmer', 'Show': 'media_player.kuche_echo_show_kuche', 'Bad': 'media_player.bad_echo_dot_bad'}[states('input_select.radio_ziel')] | default('media_player.wohnzimmer_polk_command_bar_wohnzimmer') }}"
+      - variables:
+          neu: "{{ [[ (state_attr(player, 'volume_level') | float(0.3)) + (schritt | float(0)), 0 ] | max, 1 ] | min | round(2) }}"
+      - action: media_player.volume_set
+        target:
+          entity_id: "{{ player }}"
+        data:
+          volume_level: "{{ neu }}"
+automation:
+  - id: dash_muelltonnen_erinnerung
+    alias: Mülltonnen Erinnerung
+    description: Erinnert am Vortag um 18:00 an die Abfuhr (Pixel, Handy Person 2, Wall-Display). Termine aus calendar.mulltonnen; Hinweis wird am Abholtag um 10:00 entfernt.
+    triggers:
+      - at: "18:00:00"
+        id: erinnern
+        trigger: time
+      - at: "10:00:00"
+        id: abraeumen
+        trigger: time
+    conditions: []
+    actions:
+      - default:
+          - response_variable: termine
+            data:
+              end_date_time: "{{ today_at('00:00') + timedelta(days=2) }}"
+              start_date_time: "{{ today_at('00:00') + timedelta(days=1) }}"
+            target:
+              entity_id: calendar.mulltonnen
+            action: calendar.get_events
+          - variables:
+              tonnen: "{{ (termine['calendar.mulltonnen'].events | selectattr('start','eq',(now()+timedelta(days=1)).date()|string) | map(attribute='summary') | unique | list) | join(', ') }}"
+          - condition: template
+            value_template: "{{ tonnen | length > 0 }}"
+          - data:
+              value: "Morgen: {{ tonnen }}"
+            target:
+              entity_id: input_text.muell_hinweis
+            action: input_text.set_value
+          - parallel:
+              - data:
+                  message: "Morgen wird abgeholt: {{ tonnen }}"
+                  title: Mülltonnen rausstellen
+                action: notify.mobile_app_handy_person_1
+                continue_on_error: true
+              - data:
+                  message: "Morgen wird abgeholt: {{ tonnen }}"
+                  title: Mülltonnen rausstellen
+                action: notify.mobile_app_handy_person_2
+                continue_on_error: true
+        choose:
+          - sequence:
+              - data:
+                  value: ""
+                target:
+                  entity_id: input_text.muell_hinweis
+                action: input_text.set_value
+            conditions:
+              - condition: trigger
+                id: abraeumen
+    mode: single
+  - id: dash_termine_heute_wall
+    alias: Termine heute fuer Wall-Display
+    description: Schreibt alle 5 Minuten die restlichen Termine des Tages aus calendar.familie in input_text.termine_heute (Statuszeile /dashboard-wall/start).
+    triggers:
+      - trigger: time_pattern
+        minutes: /5
+      - trigger: homeassistant
+        event: start
+    conditions: []
+    actions:
+      - response_variable: termine
+        data:
+          end_date_time: "{{ today_at('00:00') + timedelta(days=1) }}"
+          start_date_time: "{{ now() }}"
+        target:
+          entity_id: calendar.familie
+        action: calendar.get_events
+      - variables:
+          text: "{% set heute = now().date()|string %}{% set ns = namespace(l=[]) %}{% for e in termine['calendar.familie'].events | sort(attribute='start') %}{% set t = e.summary | default('Termin', true) %}{% set t = t if t|length <= 22 else t[:21] ~ '…' %}{% if e.start|length == 10 %}{% if e.start <= heute %}{% set ns.l = ns.l + [t] %}{% endif %}{% else %}{% set s = as_local(as_datetime(e.start)) %}{% set x = as_local(as_datetime(e.end)) %}{% if s.date()|string <= heute and x > now() %}{% set ns.l = ns.l + [(s.strftime('%H:%M') ~ ' ' if s.date()|string == heute else '') ~ t] %}{% endif %}{% endif %}{% endfor %}{% set n = ns.l|length %}{{ ((ns.l[:2] | join(' · ')) ~ (' +' ~ (n-2) if n > 2 else ''))[:250] }}"
+      - data:
+          value: "{{ text }}"
+        target:
+          entity_id: input_text.termine_heute
+        action: input_text.set_value
+    mode: single
+  - id: dash_kochfeld_grundlast_merken
+    alias: "Kochfeld: Grundlast merken"
+    description: Merkt sich beim Einschalten des Kochfelds die Restlast des Hauses als Grundlast für die Verbrauchsschätzung.
+    triggers:
+      - trigger: state
+        entity_id: sensor.kochfeld_betriebszustand
+        from:
+          - inactive
+          - unavailable
+          - unknown
+          - finished
+          - aborting
+          - error
+        to:
+          - ready
+          - run
+    conditions: []
+    actions:
+      - action: input_number.set_value
+        target:
+          entity_id: input_number.kochfeld_grundlast
+        data:
+          value: "{{ states('sensor.haus_restlast') | float(0) }}"
+    mode: restart

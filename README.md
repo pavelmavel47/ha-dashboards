@@ -7,6 +7,15 @@ Zwei Lovelace-Dashboards für Home Assistant (getestet mit 2026.11):
 
 Beide Dashboards haben dieselben 11 Ansichten: Start, Energie (Energiefluss mit PV, Netz, Akku und Verbrauchern), Klima, Licht, Rollläden, Wallbox, Saugroboter, Mähroboter, Türklingel, Musik/Radio und Wetter.
 
+## Inhalt
+
+| Datei | Inhalt |
+|---|---|
+| [`dashboards/wall.yaml`](dashboards/wall.yaml) | Dashboard fürs Wandpanel |
+| [`dashboards/pixel.yaml`](dashboards/pixel.yaml) | Dashboard fürs Handy |
+| [`docs/ANSICHTEN.md`](docs/ANSICHTEN.md) | Beschreibung jeder Ansicht mit allen verwendeten Entitäten und Aktionen |
+| [`packages/dashboard_helpers.yaml`](packages/dashboard_helpers.yaml) | HA-Paket mit allen Helfern, Skripten, Template-Sensoren und Automationen, auf die die Dashboards zugreifen |
+
 ## Benötigte Frontend-Erweiterungen
 
 Installierbar über den Marketplace bzw. HACS:
@@ -32,5 +41,5 @@ Installierbar über den Marketplace bzw. HACS:
 ## Hinweise
 
 - Persönliche Kennungen wurden ersetzt: Personen heißen `person.person_1` und `person.person_2`, der Mähroboter `…maehroboter…`. Passwörter, Tokens oder Adressen sind nicht enthalten.
-- Die Energie-, Wärmepumpen-, Backofen- und Kochfeld-Werte stammen teils aus eigenen Template-Sensoren (Schätzungen). Diese sind nicht Teil dieses Repos.
-- Die Radio-Kacheln nutzen die Skripte `script.radio_starten`, `script.radio_stopp` und `script.radio_lautstaerke` sowie `input_select.radio_ziel`. Auch diese sind nicht enthalten.
+- Die Energie-, Wärmepumpen-, Backofen- und Kochfeld-Werte stammen teils aus eigenen Template-Sensoren (Schätzungen, auf ein bestimmtes Haus kalibriert). Sie stehen samt Radio-Skripten, Garagentor-Skript und den Automationen für Müll-Hinweis und Termine in `packages/dashboard_helpers.yaml`.
+- Wechselrichter- und Wallbox-Entitäten kommen aus der Sungrow-Modbus-Integration von [mkaiser](https://github.com/mkaiser/Sungrow-SHx-Inverter-Modbus-Home-Assistant); die ist nicht enthalten.
