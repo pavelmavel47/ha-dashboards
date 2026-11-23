@@ -7,6 +7,27 @@ Zwei Lovelace-Dashboards für Home Assistant (getestet mit 2026.11):
 
 Beide Dashboards haben dieselben 11 Ansichten: Start, Energie (Energiefluss mit PV, Netz, Akku und Verbrauchern), Klima, Licht, Rollläden, Wallbox, Saugroboter, Mähroboter, Türklingel, Musik/Radio und Wetter.
 
+## Screenshots
+
+### Wall (Wandpanel 480 × 480)
+
+| | | |
+|---|---|---|
+| ![Start](screenshots/wall_start.png)<br>Start | ![Energie](screenshots/wall_energie.png)<br>Energie | ![Klima](screenshots/wall_klima.png)<br>Klima |
+| ![Licht](screenshots/wall_licht.png)<br>Licht | ![Rollladen](screenshots/wall_rollladen.png)<br>Rollladen | ![Wallbox](screenshots/wall_wallbox.png)<br>Wallbox |
+| ![Roboter](screenshots/wall_roboter.png)<br>Saugroboter | ![Mäher](screenshots/wall_maeher.png)<br>Mähroboter | ![Ring](screenshots/wall_ring.png)<br>Türklingel |
+| ![Musik](screenshots/wall_musik.png)<br>Musik | ![Wetter](screenshots/wall_wetter.png)<br>Wetter | |
+
+### Pixel (Handy)
+
+| | | | |
+|---|---|---|---|
+| ![Start](screenshots/pixel_start.png)<br>Start | ![Energie](screenshots/pixel_energie.png)<br>Energie | ![Klima](screenshots/pixel_klima.png)<br>Klima | ![Licht](screenshots/pixel_licht.png)<br>Licht |
+| ![Rollladen](screenshots/pixel_rollladen.png)<br>Rollladen | ![Wallbox](screenshots/pixel_wallbox.png)<br>Wallbox | ![Roboter](screenshots/pixel_roboter.png)<br>Saugroboter | ![Mäher](screenshots/pixel_maeher.png)<br>Mähroboter |
+| ![Ring](screenshots/pixel_ring.png)<br>Türklingel | ![Musik](screenshots/pixel_musik.png)<br>Musik | ![Wetter](screenshots/pixel_wetter.png)<br>Wetter | |
+
+Die Screenshots sind bereinigt: Namen ersetzt, Kamerabild, Saugroboter-Karte und Standortmarkierung unkenntlich gemacht, Ortsname durch „Musterstadt“ ersetzt.
+
 ## Inhalt
 
 | Datei | Inhalt |
